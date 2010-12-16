@@ -34,19 +34,19 @@ BYTE SD_card_init(void);
 //-------------------------------------------------------------------------
 BYTE read_status;
 BYTE response_buffer[20];
-BYTE RCA[2];
+BYTE RCA[2];//relative card address
 BYTE cmd_buffer[5];
-const BYTE cmd0[5]   = {0x40,0x00,0x00,0x00,0x00};
-const BYTE cmd55[5]  = {0x77,0x00,0x00,0x00,0x00};
-const BYTE cmd2[5]   = {0x42,0x00,0x00,0x00,0x00};
-const BYTE cmd3[5]   = {0x43,0x00,0x00,0x00,0x00};
-const BYTE cmd7[5]   = {0x47,0x00,0x00,0x00,0x00};
-const BYTE cmd9[5]   = {0x49,0x00,0x00,0x00,0x00};
-const BYTE cmd16[5]  = {0x50,0x00,0x00,0x02,0x00};
-const BYTE cmd17[5]  = {0x51,0x00,0x00,0x00,0x00};
-const BYTE acmd6[5]  = {0x46,0x00,0x00,0x00,0x02};
-const BYTE acmd41[5] = {0x69,0x0f,0xf0,0x00,0x00};
-const BYTE acmd51[5] = {0x73,0x00,0x00,0x00,0x00};
+const BYTE cmd0[5]   = {0x40,0x00,0x00,0x00,0x00};//initialisation
+const BYTE cmd55[5]  = {0x77,0x00,0x00,0x00,0x00};//tells the controller that the next command is acmd format
+const BYTE cmd2[5]   = {0x42,0x00,0x00,0x00,0x00};//responds with unique card identification number (CID)
+const BYTE cmd3[5]   = {0x43,0x00,0x00,0x00,0x00};//publishes a shorter version of CID named RCA, Relative Card Address, for future data transfer mode
+const BYTE cmd7[5]   = {0x47,0x00,0x00,0x00,0x00};//used to select which card is to be in transfer mode
+const BYTE cmd9[5]   = {0x49,0x00,0x00,0x00,0x00};//obrains card specific data ( CSD register ) eg. block length, card storage capacity
+const BYTE cmd16[5]  = {0x50,0x00,0x00,0x02,0x00};//set block length
+const BYTE cmd17[5]  = {0x51,0x00,0x00,0x00,0x00};//block read
+const BYTE acmd6[5]  = {0x46,0x00,0x00,0x00,0x02};//
+const BYTE acmd41[5] = {0x69,0x0f,0xf0,0x00,0x00};//checks that the voltage is correct
+const BYTE acmd51[5] = {0x73,0x00,0x00,0x00,0x00};//
 //-------------------------------------------------------------------------
 void Ncr(void)
 {
@@ -146,17 +146,24 @@ BYTE SD_read_lba(BYTE *buff,UINT32 lba,UINT32 seccnt)
 {
   BYTE c=0;
   UINT32  i,j;
-  lba+=101;
+//  lba+=101;
   for(j=0;j<seccnt;j++)
   {
     {
       Ncc();
       cmd_buffer[0] = cmd17[0];
+/*
+      cmd_buffer[1] = (lba>>16)&0xff;
+      cmd_buffer[2] = (lba>>8)&0xff;
+      cmd_buffer[3] = (lba)&0xff;
+      cmd_buffer[4] = 0;
+*/
       cmd_buffer[1] = (lba>>15)&0xff;
       cmd_buffer[2] = (lba>>7)&0xff;
       cmd_buffer[3] = (lba<<1)&0xff;
       cmd_buffer[4] = 0;
-      lba++;
+
+//      lba++;
       send_cmd(cmd_buffer);
       Ncr();
     }
