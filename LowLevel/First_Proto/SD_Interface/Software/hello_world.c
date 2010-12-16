@@ -25,12 +25,13 @@
 volatile int edge_capture;
 void program_init();
 int SEG7_EN = 1;
-
+UINT32 j=720;
+int flag;
 int main()
 {
+  int i;
+  //UINT16 i=0;
 
-  UINT16 i=0;
-  UINT32 j=720;
   BYTE Buffer[512]={0};
   int x=0;
 
@@ -45,17 +46,28 @@ int main()
 
   while(1)
   {
+	  //if(flag)
+	  //{
+		//printf("entered\n");
+		SD_read_lba(Buffer,j,1);
+		//for(i=511;i>=0;i--) printf("%c ", Buffer[i]);
+		//printf("\n");
+		printf("0x%x , 0x%x , 0x%x , 0x%x , 0x%x , 0x%x , 0x%x , 0x%x , 0x%x , \n",
+		    		Buffer[512], Buffer[300], Buffer[200], Buffer[100],
+		    		Buffer[4], Buffer[3], Buffer[2], Buffer[1], Buffer[0]);
 
-    SD_read_lba(Buffer,j,1);
-    printf("0x%x , 0x%x \n", Buffer[0], Buffer[1]);
-    //IOWR(SEG7_DISPLAY_BASE, 2, 1);
-    IOWR_ALTERA_AVALON_PIO_DATA(PIO_SEG7_BASE,x);
-    j++;
+		  //IOWR(SEG7_DISPLAY_BASE, 2, 1);
+		  IOWR_ALTERA_AVALON_PIO_DATA(PIO_SEG7_BASE,x);
+		  j++;
+		  x++;
+		  flag=0;
+	  //}
+
     //usleep(1000);
-    i=0;
+    //i=0;
 
     //printf (" x = %d \n", x);
-    x += 1;
+    //x += 1;
 
   }
 
@@ -65,8 +77,9 @@ int main()
 void simple_irq(void* context, alt_u32 id)
 {
 	printf("interrupt entered\n");
-	SEG7_EN = SEG7_EN ^1;
-	IOWR_ALTERA_AVALON_PIO_DATA(PIO_SEG7_EN_BASE, SEG7_EN);
+	flag =1;
+	//SEG7_EN = SEG7_EN ^1;
+	//IOWR_ALTERA_AVALON_PIO_DATA(PIO_SEG7_EN_BASE, SEG7_EN);
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
 
 }
