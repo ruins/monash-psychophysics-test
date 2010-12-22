@@ -1,5 +1,5 @@
-%function HaarTest2() by Meng Chen @ Monash University
-%Updated 21/09/10
+%Function HaarTest3() by Meng Chen @ Monash University
+%Updated 08/10/10
 %J - input signal
 %P - reduce coefficients to P%. P value ignored if F = 0
 %F - bitwise flag 0-15
@@ -13,9 +13,10 @@
     % and 1111, perhaps should develop into special modes of some sort
     %
     % default - without F specified, all channels affected, F = 0000
-%L - level of decomposition, default log2 of 1-D data length
+    
+%Level of decomposition, default log2 of 1-D data length. If J is matrix N= number of columns
 
-function [Ori_Mat,S_Mat,Rec_Mat]=HaarTest2(J,P,F,L)
+function [Ori_Mat,S_Mat,Rec_Mat]=HaarTest3(J,F,freq1,freq2)
  
 if(length(size(J))>2)
     
@@ -26,14 +27,11 @@ elseif isa(J,'double')~=1
     J = double(J);
 end
 
-if (nargin <4 )||(L<0)||(L>20) %upper and lower limit for levels of decomposition, upper can be altered as needed
-    
-    N = ceil(log2(length(J)));
-        
-else
-    
-    N=ceil(L);
-    
+N = ceil(log2(length(J)));
+
+if (nargin <4) 
+
+    freq2=1/0;
 end
 
 if nargin <3
@@ -41,29 +39,36 @@ if nargin <3
     F=0;
        
 else
-    if F >15
+    if F >2
         
-        F=15;
+        F=2;
         
     end
       
 end
 
-if (P<0)
-    
-    P=0;
-    
-elseif (P>100)
-    
-    P=100;
-
-end
 
 Flag = F;
   
 [C, S] = wavedec2(J,N,'haar');
 
 length_A=S(1,1)*S(1,2);
+
+Freqs= zeros(N,2);
+
+len=size(J,1);
+wid=size(J,2);
+
+for i = 1:N
+    
+Freqs(i,1)= round(len/S(i+1,1));
+Freqs(i,2)=round(wid/S(i+1,2));
+
+end
+
+
+
+
 
 if Flag == 0
     
