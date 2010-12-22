@@ -8,7 +8,7 @@
 
 int main(void)
 {
-	char buffer_name[10];
+	char buffer_name[20];
 	short int handler;
 	short int read;
 	printf("System starting up\n");
@@ -42,18 +42,36 @@ int main(void)
 			}
 		}
 
-	handler = alt_up_sd_card_find_first("HELLO/.", buffer_name);
+//	handler = alt_up_sd_card_find_first("HELLO/.", buffer_name);
+	handler = alt_up_sd_card_find_first("", buffer_name);
 	printf("%d,  %s \n", handler, buffer_name);
 	while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
 
 	handler = alt_up_sd_card_fopen("HELLO/HELLO", false);
-	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c \n", read);
+	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c ", read);
+	printf("\n");
 	alt_up_sd_card_fclose(handler);
 
-	handler = alt_up_sd_card_fopen("FILE", false);
-	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c \n", read);
+	int x=0;
+	handler = alt_up_sd_card_fopen("BLACK.HEX", false);
+	while ((read = alt_up_sd_card_read(handler)) != -1)
+		{
+		x++;
+			printf("%c ", read);
+		}
+	printf("file count %d \n",x);
+	alt_up_sd_card_fclose(handler);
+/* writing operations
+	char string[20] = "hello world";
+	handler = alt_up_sd_card_fopen("text2.txt", true);
+	for (x=0 ; x <= 20; x++) alt_up_sd_card_write(handler, string[x]);
 	alt_up_sd_card_fclose(handler);
 
+	handler = alt_up_sd_card_fopen("text2.txt", false);
+	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c", read);
+	printf("\n");
+	alt_up_sd_card_fclose(handler);
+*/
 return 0;
 }
 
