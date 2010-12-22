@@ -3,18 +3,20 @@
 #include "system.h"
 #include "sys/alt_irq.h"
 #include "alt_types.h"
-#include "altera_avalon_pio_regs.h"
+//#include "altera_avalon_pio_regs.h"
 #include "sys/alt_sys_init.h"
 
 int main(void)
 {
+	char buffer_name[10];
+	short int handler;
+	short int read;
 	printf("System starting up\n");
 
 	alt_up_sd_card_dev *device_reference = NULL;
 	int connected = 0;
 	device_reference = alt_up_sd_card_open_dev("/dev/Altera_UP_SD_Card_Avalon_Interface_0");
-	while(1)
-	{
+
 		if (device_reference != NULL)
 		{
 			while(1)
@@ -23,7 +25,11 @@ int main(void)
 				{
 					printf("Card connected.\n");
 					//usleep(5000000);
-					if (alt_up_sd_card_is_FAT16()) 	printf("FAT16 file system detected.\n");
+					if (alt_up_sd_card_is_FAT16())
+					{
+						printf("FAT16 file system detected.\n");
+						break;
+					}
 					else 							printf("Unknown file system.\n");
 					connected = 1;
 				}
@@ -35,7 +41,19 @@ int main(void)
 				//printf("polling, connected %d\n", connected);
 			}
 		}
-	}
+
+	handler = alt_up_sd_card_find_first("HELLO/.", buffer_name);
+	printf("%d,  %s \n", handler, buffer_name);
+	while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
+
+	handler = alt_up_sd_card_fopen("HELLO/HELLO", false);
+	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c \n", read);
+	alt_up_sd_card_fclose(handler);
+
+	handler = alt_up_sd_card_fopen("FILE", false);
+	while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c \n", read);
+	alt_up_sd_card_fclose(handler);
+
 return 0;
 }
 
