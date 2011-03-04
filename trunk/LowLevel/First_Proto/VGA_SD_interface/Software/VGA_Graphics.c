@@ -6,23 +6,33 @@
 #include "sys/alt_irq.h"//??
 #include "sys/alt_sys_init.h"//??
 #include "alt_types.h"
+#include "altera_avalon_pio_regs.h"
+
 
 #include "stdio.h"
 void draw_big_A(alt_up_pixel_buffer_dma_dev *);
+
+//// Interrupt setup
+volatile int edge_capture;
+void program_init();
+
+alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
+alt_up_char_buffer_dev *char_buffer_dev;
 
 int main(void)
 {
 	//Lets get started
 	printf("hello world!\nNios is now starting up.......\n\n");
-
+	program_init();
 	//SD section initialisation
 	char buffer_name[20];
 	short int handler;
 	short int read;
+	short int picture[640][480];
+	//short int picture2[640][480];
 
 	//VGA Section initialisation
-	alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
-	alt_up_char_buffer_dev *char_buffer_dev;
+
 	int xD=0;
 	int yD=0;
 
@@ -50,11 +60,11 @@ int main(void)
 
 	char_buffer_dev = alt_up_char_buffer_open_dev ("/dev/Char_Buffer_with_DMA");
 	alt_up_char_buffer_clear(char_buffer_dev);
-//	alt_up_char_buffer_string (char_buffer_dev, text_top_row, 35, 29);
-//	alt_up_char_buffer_string (char_buffer_dev, text_bottom_row, 35, 30);
+	alt_up_char_buffer_string (char_buffer_dev, text_top_row, 35, 29);
+	alt_up_char_buffer_string (char_buffer_dev, text_bottom_row, 35, 30);
 
 	/* now draw a background box for the text */
-//	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 34*8, 28*8, 50*8, 32*8, 200, 0);
+	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 34*8, 28*8, 50*8, 32*8, 200, 0);
 
 	//printf("hello world\n");
 /*
@@ -108,16 +118,16 @@ while(1)
 
 		while ((read = alt_up_sd_card_read(handler)) != -1)
 		{
-			if(yD < 479)
+			if(xD < 639)
 			{
 				alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, read, xD , yD);
-				yD++;
+				xD++;
 			}
 			else
 			{
 
-				yD=0;
-				xD++;
+				xD=0;
+				yD++;
 				alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, read, xD , yD);
 			}
 
@@ -146,4 +156,38 @@ void draw_big_A(alt_up_pixel_buffer_dma_dev *pixel_buffer_dev )
 	alt_up_pixel_buffer_dma_draw_line(pixel_buffer_dev, 58, 32, 69, 60, 0xff, 0);
 	alt_up_pixel_buffer_dma_draw_line(pixel_buffer_dev, 69, 60, 47, 60, 0xff, 0);
 }
+
+int count=0;
+void simple_irq(void* context, alt_u32 id)
+{
+	printf("im in an interrupt\n");
+	alt_up_char_buffer_clear(char_buffer_dev);
+	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
+	if(count==0)
+	{
+		alt_up_char_buffer_string (char_buffer_dev, "Psychophysics Experiment", 10, 0);
+		alt_up_char_buffer_string (char_buffer_dev, "First Prototype", 5, 1);
+		alt_up_char_buffer_string (char_buffer_dev, "Press again to continue...", 30, 30);
+		alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 0, 0, 640, 480, 200, 0);
+	}
+	else if (count==1)
+	{
+		alt_up_char_buffer_string (char_buffer_dev, "============================Main Menu===========================", 5, 5);
+		alt_up_char_buffer_string (char_buffer_dev, "================================================================", 5, 6);
+		alt_up_char_buffer_string (char_buffer_dev, "~//////////Controls | Destination\\\\\\\\\\~", 5, 7);
+		alt_up_char_buffer_string (char_buffer_dev, "~//////////KEY3     | Start\\\\\\\\\\~", 5, 7);
+		alt_up_char_buffer_string (char_buffer_dev, "~//////////KEY2     | Stop\\\\\\\\\\~", 5, 8);
+	}
+	count++;
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
+
+}
+void program_init()
+{
+	void* edge_capture_ptr = (void*) &edge_capture;//recast edge capture
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
+	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY2_BASE,0x1);//enable irq
+	alt_irq_register(PIO_KEY2_IRQ,edge_capture_ptr,simple_irq);
+}
+
 
