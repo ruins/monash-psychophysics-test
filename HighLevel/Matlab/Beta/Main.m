@@ -426,7 +426,9 @@ end
 function [out]= set_mode()
 temp =[];
 
-temp.list = ['Mode A'; 'Mode B'];
+temp.list = ('Gaussian Blur');
+temp.list = strvcat(temp.list,'Grayscale Level');
+
 
 temp.numparams = [2 2];
 
@@ -438,8 +440,8 @@ out = temp;
 function [out]=set_resolution()
 
 temp = [];
-temp.list= ('320 x 240');
-temp.value = [320 240];
+temp.list= ('240 x 320');
+temp.value = [240 320];
 temp.current=[];
 out= temp;
 
