@@ -1,0 +1,33 @@
+exposure in numbers  (0;20)
+resolution in numbers (1;0)
+(2;0)
+3;4
+Cup         ;3 
+Dog         ;1 
+Flower      ;2 
+House       ;4 
+
+Mode B 
+param1,2 
+param2,5 
+
+1,2,4,-1,f1.jpg 
+2,1,5,-1,d8.jpg 
+3,3,2,-1,c1.jpg 
+4,4,4,-1,h1.jpg 
+5,4,2,-1,h3.jpg 
+6,1,5,-1,d5.jpg 
+7,2,2,-1,f4.jpg 
+8,3,5,-1,c3.jpg 
+9,3,4,-1,c2.jpg 
+10,2,3,-1,f2.jpg 
+11,4,3,-1,h4.jpg 
+12,2,2,-1,f5.jpg 
+13,3,5,-1,c4.jpg 
+14,1,2,-1,d7.jpg 
+15,1,5,-1,d6.jpg 
+16,4,4,-1,h5.jpg 
+17,3,3,-1,c5.jpg 
+18,4,3,-1,h2.jpg 
+19,1,2,-1,d4.jpg 
+20,2,3,-1,f3.jpg 
