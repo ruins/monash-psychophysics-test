@@ -9,6 +9,7 @@
 #include "altera_avalon_pio_regs.h"
 
 #include <stdio.h>
+#include <sys/time.h>
 #include <time.h>
 #include <stdlib.h>
 void draw_big_A(alt_up_pixel_buffer_dma_dev *);
@@ -18,12 +19,15 @@ void wait_M_or_N();
 void wait_SPACE();
 void wait_BackSpace();
 void wait_Text();
-
 int wait_Main_Menu();
+void ps2_clear();
 //// Interrupt setup
 volatile int edge_capture;
 void program_init();
 
+void SD_open();
+void SD_read();
+void SDram_to_VGA_back_buffer();
 alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
 alt_up_char_buffer_dev *char_buffer_dev;
 
@@ -34,23 +38,25 @@ alt_u8 ps2_used=0;
 volatile int keyboard_flag = 0;
 int main_menu = 0;
 char text[40];
+char buffer_name[20];
+short int handler;
+unsigned char read;
+short int picture[320][240][10];
+alt_up_sd_card_dev *device_reference = NULL;
+int connected = 0;
+
+int xD=0;
+int yD=0;
+
 int main(void)
 {
 	//Lets get started
 	printf("hello world!\nNios is now starting up.......\n\n");
 	program_init();
 	//SD section initialisation
-	char buffer_name[20];
-	short int handler;
-	short int read;
-	short int picture[320][240];
 	//short int picture2[640][480];
 
 	//VGA Section initialisation
-
-	int xD=0;
-	int yD=0;
-
 	/* create a message to be displayed on the VGA display */
 
 	char text_bottom_row[40] = "Testing\0";
@@ -98,92 +104,20 @@ while(1)
 	alt_up_char_buffer_string (char_buffer_dev, "ALPHA Prototype", 20, 11);
 	alt_up_char_buffer_string (char_buffer_dev, "Processing Information from SD Card...", 20, 30);
 
+	SD_open();
 
-	//SD card section
-	alt_up_sd_card_dev *device_reference = NULL;
-	int connected = 0;
-	device_reference = alt_up_sd_card_open_dev("/dev/Altera_UP_SD_Card_Avalon_Interface_0");
-
-		if (device_reference != NULL)
-		{
-			while(1)
-			{
-				if ((connected == 0) && (alt_up_sd_card_is_Present()))
-				{
-					printf("Card connected.\n");
-					//usleep(5000000);
-					if (alt_up_sd_card_is_FAT16())
-					{
-						printf("FAT16 file system detected.\n");
-						break;
-					}
-					else 							printf("Unknown file system.\n");
-					connected = 1;
-				}
-				else if ((connected == 1) && (alt_up_sd_card_is_Present() == false))
-				{
-					printf("Card disconnected.\n");
-					connected = 0;
-				}
-				//printf("polling, connected %d\n", connected);
-			}
-		}
-
-
-		handler = alt_up_sd_card_find_first("", buffer_name);
-		printf("%d,  %s \n", handler, buffer_name);
-
-		while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
-
-		handler = alt_up_sd_card_fopen("THESIS.TXT", false);
-
-		int row = 0;
-		int col =0;
-
-		while ((read = alt_up_sd_card_read(handler)) != -1)
-		{
-			if (row < 319)
-			{
-				row++;
-				picture [row][col] =read;
-			}
-			else
-			{
-				row=0;
-				col++;
-				picture [row][col] =read;
-			}
-		}
+	SD_read();
 
 //		while ((read = alt_up_sd_card_read(handler)) != -1){}
 		printf("read complete\n");
-		alt_up_sd_card_fclose(handler);
 
 		alt_up_char_buffer_string (char_buffer_dev, "Complete!", 20, 31);
 		alt_up_char_buffer_string (char_buffer_dev, "Buffering Pixels...", 20, 32);
 
 		alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
 //		alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 155, 115, 484, 364, 255, 0);
+		SDram_to_VGA_back_buffer();
 
-		xD=160;
-		yD=120;
-//		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
-		while(yD < 359)
-		{
-			if(xD < 479)
-			{
-				alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120], xD , yD);
-				xD++;
-			}
-			else
-			{
-
-				xD=160;
-				yD++;
-				alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120], xD , yD);
-			}
-
-		}
 //		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 		printf("frame to back buffer complete\n");
 		alt_up_char_buffer_string (char_buffer_dev, "Ready!", 20, 33);
@@ -260,7 +194,7 @@ while(1)
 
 
 				alt_up_char_buffer_string (char_buffer_dev, "Instructions:", 10, 16);
-				alt_up_char_buffer_string (char_buffer_dev, "You will be shown a picture briefly after which", 10, 17);
+				alt_up_char_buffer_string (char_buffer_dev, "You will be shown a picture briefly", 10, 17);
 				alt_up_char_buffer_string (char_buffer_dev, "Select a category that you think the picture belongs to", 10, 20);
 				while(1)
 				{
@@ -273,31 +207,39 @@ while(1)
 				//usleep(20000);
 				//alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
 				//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 255, 0);
-				usleep(1000000 + rand()%3000000);
+				usleep(500000 + rand()%1000000);
 				//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
 				alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-				usleep(100000);
+				usleep(15000000);
 				//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 0, 0);
 				//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
 				alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
 				//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 				//usleep(60000);
 				//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 0, 0);
-				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
-
+//				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+/*
 				while(1)
 				{
 					if(ps2_used == 41)
 					{
-						IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
+						//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 						break;
 					}
 				}
 				keyboard_flag =0;
 				ps2_used=0;
 				ps2_data=0;
+				*/
 				//usleep(3000000);
-
+				usleep(400000);
+				alt_up_char_buffer_string (char_buffer_dev,"please wait for a moment" , 30, 50);
+				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+				SDram_to_VGA_back_buffer();
+				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
+				alt_up_char_buffer_string (char_buffer_dev,"ready! press space" , 30, 51);
+				wait_SPACE();
+				alt_up_char_buffer_clear(char_buffer_dev);
 				alt_up_char_buffer_string (char_buffer_dev,"Data Collected" , 30, 50);
 				alt_up_char_buffer_string (char_buffer_dev,"Press Space Bar to Continue" , 30, 51);
 				alt_up_char_buffer_string (char_buffer_dev,"as Current User or press N for New User" , 25, 52);
@@ -305,6 +247,7 @@ while(1)
 
 				if (wait_New_or_Current()== 1) break;
 				alt_up_char_buffer_clear(char_buffer_dev);
+
 			}
 		}
 	}
@@ -330,28 +273,140 @@ while(1)
 		return 0;
 }
 
+int random_picture =0;
+void SDram_to_VGA_back_buffer()
+{
+	xD=160;
+	yD=120;
 
+
+	//random_picture++;
+	//if ( random_picture == 10)random_picture ==0;
+	while ((random_picture = rand()%10) == 0);
+	//printf("%ld\n",tv.tv_usec);
+	printf ("random picture : %d\n",random_picture);
+//		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+	while(yD < 359)
+	{
+		if(xD < 479)
+		{
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120][random_picture], xD , yD);
+			xD++;
+		}
+		else
+		{
+
+			xD=160;
+			yD++;
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120][random_picture], xD , yD);
+		}
+
+	}
+
+}
+void SD_open()
+{
+	//SD card section
+	device_reference = alt_up_sd_card_open_dev("/dev/Altera_UP_SD_Card_Avalon_Interface_0");
+
+		if (device_reference != NULL)
+		{
+			while(1)
+			{
+				if ((connected == 0) && (alt_up_sd_card_is_Present()))
+				{
+					printf("Card connected.\n");
+					//usleep(5000000);
+					if (alt_up_sd_card_is_FAT16())
+					{
+						printf("FAT16 file system detected.\n");
+						break;
+					}
+					else 							printf("Unknown file system.\n");
+					connected = 1;
+				}
+				else if ((connected == 1) && (alt_up_sd_card_is_Present() == false))
+				{
+					printf("Card disconnected.\n");
+					connected = 0;
+				}
+				//printf("polling, connected %d\n", connected);
+			}
+		}
+
+}
+
+void SD_read()
+{
+	int picturenumber=0 ;
+	int ref=0;
+	char filename[6];
+	char extension[4] = ".txt";
+	handler = alt_up_sd_card_find_first("", buffer_name);
+	printf("%d,  %s \n", handler, buffer_name);
+
+	while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
+
+	for(picturenumber = 1;picturenumber <=10; picturenumber++)
+	{
+		ref = picturenumber;
+		sprintf(filename, "%d%s", ref, extension);
+		printf("%s\n", filename);
+
+		handler = alt_up_sd_card_fopen(filename, false);
+
+		//handler = alt_up_sd_card_fopen("1.txt", false);
+
+		int row = 0;
+		int col =0;
+		int read_count = 0 ;
+		while ((read = alt_up_sd_card_read(handler)) != -1)
+		{
+			//printf("%d\n",read);
+			if (row < 319)
+			{
+				row++;
+				picture [row][col][picturenumber] =read;
+			}
+			else
+			{
+				row=0;
+				col++;
+				picture [row][col][picturenumber] =read;
+			}
+			read_count++;
+			if (read_count >=72958)break;
+
+		}
+		alt_up_sd_card_fclose(handler);
+	}
+}
 void wait_BackSpace()
 {
+	ps2_clear();
 	while(ps2_used != 102){}
-	keyboard_flag=0;
-	ps2_used=0;
-	ps2_data=0;
+	ps2_clear();
 }
 void wait_ENTER()
 {
+	ps2_clear();
 	while(ps2_used != 90){}
+	ps2_clear();
+}
+void ps2_clear()
+{
 	keyboard_flag=0;
 	ps2_used=0;
 	ps2_data=0;
 }
-
 void wait_Text()
 {
+
 	int x = 10;
 	int y = 17;
 	int value=0;
 	char ascii=0;
+	ps2_clear();
 	while((ps2_used != 90))
 	{
 		if(keyboard_flag == 1)
@@ -485,23 +540,20 @@ void wait_Text()
 
 	}
 
-	keyboard_flag=0;
-	ps2_used=0;
-	ps2_data=0;
+	ps2_clear();
 }
-
 
 void wait_SPACE()
 {
+	ps2_clear();
 	while(ps2_used != 41){}
-	keyboard_flag=0;
-	ps2_used=0;
-	ps2_data=0;
+	ps2_clear();
 }
 
 
 int wait_New_or_Current()
 {
+	ps2_clear();
 	while(1)
 	{
 		if (ps2_used == 49)
@@ -523,17 +575,17 @@ int wait_New_or_Current()
 }
 void wait_M_or_N()
 {
+	ps2_clear();
 	while(1)
 	{
 		if (ps2_used == 58) break;
 		else if (ps2_used == 43) break;
 	}
-	keyboard_flag=0;
-	ps2_used=0;
-	ps2_data=0;
+	ps2_clear();
 }
 int wait_Main_Menu()
 {
+	ps2_clear();
 	while(1)
 	{
 		if (ps2_used == 22 )
