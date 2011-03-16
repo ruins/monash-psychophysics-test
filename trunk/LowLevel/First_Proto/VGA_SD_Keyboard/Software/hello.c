@@ -41,12 +41,14 @@ char text[40];
 char buffer_name[20];
 short int handler;
 unsigned char read;
-short int picture[320][240][10];
+#define PICTURE_NUMBER 50
+short int picture[320][240][PICTURE_NUMBER];
 alt_up_sd_card_dev *device_reference = NULL;
 int connected = 0;
 
 int xD=0;
 int yD=0;
+
 
 int main(void)
 {
@@ -105,14 +107,14 @@ while(1)
 	alt_up_char_buffer_string (char_buffer_dev, "Processing Information from SD Card...", 20, 30);
 
 	SD_open();
-
+//	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
 	SD_read();
-
+//	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 //		while ((read = alt_up_sd_card_read(handler)) != -1){}
 		printf("read complete\n");
 
-		alt_up_char_buffer_string (char_buffer_dev, "Complete!", 20, 31);
-		alt_up_char_buffer_string (char_buffer_dev, "Buffering Pixels...", 20, 32);
+		alt_up_char_buffer_string (char_buffer_dev, "Complete!", 20, 32);
+		alt_up_char_buffer_string (char_buffer_dev, "Buffering Pixels...", 20, 33);
 
 		alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
 //		alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 155, 115, 484, 364, 255, 0);
@@ -120,7 +122,7 @@ while(1)
 
 //		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 		printf("frame to back buffer complete\n");
-		alt_up_char_buffer_string (char_buffer_dev, "Ready!", 20, 33);
+		alt_up_char_buffer_string (char_buffer_dev, "Ready!", 20, 34);
 		usleep(600000);
 		//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 155, 115, 484, 364, 255, 0);
 
@@ -210,7 +212,7 @@ while(1)
 				usleep(500000 + rand()%1000000);
 				//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
 				alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-				usleep(15000000);
+				usleep(20000);
 				//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 0, 0);
 				//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
 				alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
@@ -282,7 +284,7 @@ void SDram_to_VGA_back_buffer()
 
 	//random_picture++;
 	//if ( random_picture == 10)random_picture ==0;
-	while ((random_picture = rand()%10) == 0);
+	while ((random_picture = rand()%PICTURE_NUMBER) == 0);
 	//printf("%ld\n",tv.tv_usec);
 	printf ("random picture : %d\n",random_picture);
 //		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
@@ -338,19 +340,39 @@ void SD_open()
 
 void SD_read()
 {
+	int xx = 20;
 	int picturenumber=0 ;
 	int ref=0;
 	char filename[6];
-	char extension[4] = ".txt";
+
 	handler = alt_up_sd_card_find_first("", buffer_name);
 	printf("%d,  %s \n", handler, buffer_name);
 
 	while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
 
-	for(picturenumber = 1;picturenumber <=10; picturenumber++)
+	for(picturenumber = 1;picturenumber <=PICTURE_NUMBER; picturenumber++)
 	{
 		ref = picturenumber;
-		sprintf(filename, "%d%s", ref, extension);
+		sprintf(filename, "%d", ref);
+
+		if(picturenumber >=10)
+		{
+			filename[2]='.';
+			filename[3]='t';
+			filename[4]='x';
+			filename[5]='t';
+			filename[6]=0;
+		}
+		else
+		{
+			filename[1]='.';
+			filename[2]='t';
+			filename[3]='x';
+			filename[4]='t';
+			filename[5]=0;
+			//filename[6]
+		}
+
 		printf("%s\n", filename);
 
 		handler = alt_up_sd_card_fopen(filename, false);
@@ -378,6 +400,8 @@ void SD_read()
 			if (read_count >=72958)break;
 
 		}
+		alt_up_char_buffer_string (char_buffer_dev, ".", xx, 31);
+		xx++;
 		alt_up_sd_card_fclose(handler);
 	}
 }
