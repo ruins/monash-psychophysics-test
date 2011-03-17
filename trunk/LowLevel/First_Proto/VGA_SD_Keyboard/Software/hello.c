@@ -27,6 +27,7 @@ void program_init();
 
 void SD_open();
 void SD_read();
+void SD_subread();
 void SDram_to_VGA_back_buffer();
 alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
 alt_up_char_buffer_dev *char_buffer_dev;
@@ -108,7 +109,9 @@ while(1)
 
 	SD_open();
 //	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+	SD_subread();
 	SD_read();
+
 //	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 //		while ((read = alt_up_sd_card_read(handler)) != -1){}
 		printf("read complete\n");
@@ -235,12 +238,12 @@ while(1)
 				*/
 				//usleep(3000000);
 				usleep(400000);
-				alt_up_char_buffer_string (char_buffer_dev,"please wait for a moment" , 30, 50);
+				alt_up_char_buffer_string (char_buffer_dev,"please wait for a moment" , 30, 49);
 				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
 				SDram_to_VGA_back_buffer();
 				IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
-				alt_up_char_buffer_string (char_buffer_dev,"ready! press space" , 30, 51);
-				wait_SPACE();
+				//alt_up_char_buffer_string (char_buffer_dev,"ready! press space" , 30, 51);
+				//wait_SPACE();
 				alt_up_char_buffer_clear(char_buffer_dev);
 				alt_up_char_buffer_string (char_buffer_dev,"Data Collected" , 30, 50);
 				alt_up_char_buffer_string (char_buffer_dev,"Press Space Bar to Continue" , 30, 51);
@@ -337,19 +340,50 @@ void SD_open()
 		}
 
 }
+void SD_subread()
+{
+	int mode = 0;
+	int read_flag = 0;
+	char sys_read;
+	handler = alt_up_sd_card_fopen("sys.txt", false);
+	while ((sys_read = alt_up_sd_card_read(handler)) != -1)
+	{
+//		if (read_flag == 1 ) printf("%c", sys_read);
+		printf("%c", sys_read,sys_read);
 
+		if(sys_read == 10) // new line
+		{
+			printf("\n");
+		}
+		else if (sys_read == 59) // seperator ;
+		{
+
+		}
+		else if (sys_read == 126) // seperator ~
+		{
+			printf("here Here HERE!!!\n");
+			mode = 1;
+		}
+		else if (sys_read == 92)
+		{
+			read_flag = 1;
+			printf("here Here HERE!!!\n");
+		}
+	}
+	alt_up_sd_card_fclose(handler);
+}
 void SD_read()
 {
 	int xx = 20;
 	int picturenumber=0 ;
 	int ref=0;
 	char filename[6];
-
+/*
 	handler = alt_up_sd_card_find_first("", buffer_name);
 	printf("%d,  %s \n", handler, buffer_name);
 
 	while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%d,  %s \n", handler, buffer_name);
-
+*/
 	for(picturenumber = 1;picturenumber <=PICTURE_NUMBER; picturenumber++)
 	{
 		ref = picturenumber;
