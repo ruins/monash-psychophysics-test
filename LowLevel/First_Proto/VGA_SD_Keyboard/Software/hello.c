@@ -68,7 +68,6 @@ int main(void)
 	/* initialize the pixel buffer HAL */
 	pixel_buffer_dev = alt_up_pixel_buffer_dma_open_dev ("/dev/Pixel_Buffer_DMA");
 	/* clear the graphics screen */
-
 	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
 	//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 1);
 /*
@@ -204,10 +203,7 @@ while(1)
 				while(1)
 				{
 				alt_up_char_buffer_string (char_buffer_dev, "Please press space bar when ready to begin", 20, 30);
-
-
 				wait_SPACE();
-
 				alt_up_char_buffer_clear(char_buffer_dev);
 				//usleep(20000);
 				//alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
@@ -278,12 +274,12 @@ while(1)
 		return 0;
 }
 
-int random_picture =0;
+
 void SDram_to_VGA_back_buffer()
 {
 	xD=160;
 	yD=120;
-
+	int random_picture =0;
 
 	//random_picture++;
 	//if ( random_picture == 10)random_picture ==0;
