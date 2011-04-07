@@ -1,27 +1,52 @@
 /*
  * sys_functions.c
  *
- *  Created on: Mar 18, 2011
- *      Author: CJ
- *      Revision: 1.0
+ *  Created on: Mar 30, 2011
+ *      Author: Shee Jia Chin
+ *      Revision: 4.0
+ *
+ * This Code Interfaces with a Nios Softcore Microprocessor intended to be used
+ * With the DE2 Hardware FPGA (Field Programmable Gate Array)
+ * In Here, There are tailored functions designed for the purpose of the
+ * Psychophysics Experiment to be tied in with the Monash University Australia
+ * Bionic Eye Project.
+ *
+ * There are:
+ * @@@@@@@@@@  Input interrupt functions: Testing, Interfacing and Reseting
+ * @@@@@@@@@@  Program initialisation Function
+ * @@@@@@@@@@  PS2 Keyboard Interface Handling Functions
+ * @@@@@@@@@@  SD Card Interface Functions
+ * $$$$$$$$$$$$$$$$$$$$   SD Card Functions:
+ * $$$$$$$$$$$$$$$$$$$$    SD_open()
+ * $$$$$$$$$$$$$$$$$$$$    SD_read()
+ * $$$$$$$$$$$$$$$$$$$$    SD_subread()
+ * $$$$$$$$$$$$$$$$$$$$    SD_text_begin()
+ * $$$$$$$$$$$$$$$$$$$$    SD_text_mid()
+ * $$$$$$$$$$$$$$$$$$$$    SD_text_end()
+ * @@@@@@@@@@  VGA Interface Functions
  */
+
+/* Header Files for VGA interface */
 #include "altera_up_avalon_video_pixel_buffer_dma.h"
 #include "altera_up_avalon_video_character_buffer_with_dma.h"
+/* Header Files for SD Card Interface*/
 #include "altera_up_sd_card_avalon_interface.h"//system initiation is incorrect, must change alt_sys_init.c file and rename include section
-
+/* Header Files for Nios Microprocessor Interface with SOPC IP cores */
 #include "system.h"
 #include "sys/alt_irq.h"//??
 #include "sys/alt_sys_init.h"//??
 #include "alt_types.h"
 #include "altera_avalon_pio_regs.h"
-
+/* Header Files for common C functions */
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
 #include <stdlib.h>
+/* Header Files For Implementing uCOSii Kernal*/
 #include "includes.h"
-
-
+/* Header Files For System Tailored Functions*/
+#include "sys_functions.h"
+/* For Ultilizing OS_ENTER_CRITICAL() & OS_EXIT CRITICAL*/
 #if OS_CRITICAL_METHOD == 3
 OS_CPU_SR cpu_sr;
 #endif
@@ -32,19 +57,34 @@ alt_u8 ps2_data=0;
 alt_u8 ps2_used=0;
 volatile int keyboard_flag = 0;
 
+/* Translation for Text from PS2 to Ascii Variables*/
+char text[40];
+int text_x = 10;
+int text_y = 17;
+int value=0;
+
 /* Definition of Buffer DMA Devices*/
 alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
 alt_up_char_buffer_dev *char_buffer_dev;
 
+short int results_handler;
+short int handler;
+char oresults[PICTURE_NUMBER];
+int sd_count=0;
+//int sd_close_set=0;
 
-
+/* Interrupt Flag*/
 volatile int edge_capture;
 
 // ISR Functions
-int count=0;
+int image_en=0;
+
+
 /* Parameters for Picture Settings */
-#define PICTURE_NUMBER 50
-short int picture[320][240][PICTURE_NUMBER];
+
+short int picture[320][320][PICTURE_NUMBER];
+
+int random_picture=0;
 /*Parameters for Fixation Point*/
 #define X1 318
 #define X2 323
@@ -52,83 +92,32 @@ short int picture[320][240][PICTURE_NUMBER];
 #define Y2 243
 #define FIXATION_COLOUR 100
 
-
-void simple_irq(void* context, alt_u32 id)
-{
-	printf("im in an interrupt\n");
-	//alt_up_char_buffer_clear(char_buffer_dev);
-	//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
-	/*
-	if(count==0)
-	{
-		alt_up_char_buffer_string (char_buffer_dev, "Psychophysics Experiment", 10, 0);
-		alt_up_char_buffer_string (char_buffer_dev, "First Prototype", 5, 1);
-		alt_up_char_buffer_string (char_buffer_dev, "Press again to continue...", 30, 30);
-		alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 0, 0, 640, 480, 200, 0);
-	}
-	else if (count==1)
-	{
-		alt_up_char_buffer_string (char_buffer_dev, "============================Main Menu===========================", 5, 5);
-		alt_up_char_buffer_string (char_buffer_dev, "================================================================", 5, 6);
-		alt_up_char_buffer_string (char_buffer_dev, "~//////////Controls | Destination\\\\\\\\\\~", 5, 7);
-		alt_up_char_buffer_string (char_buffer_dev, "~//////////KEY3     | Start\\\\\\\\\\~", 5, 7);
-		alt_up_char_buffer_string (char_buffer_dev, "~//////////KEY2     | Stop\\\\\\\\\\~", 5, 8);
-	}
-	else
-	{
-
-	}*/
-
-	if(count == 0)
-	{
-		alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 0);
-		alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	}
-	else if (count == 1)
-	{
-		alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
-		alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	}
-	count = count ^1;
+/* Testing and Debugging ISR Interrupt Service Routine */
 /*
-	count = count+100;
-	alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, count);
-	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-*/
-	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
-
+void key1_irq(void* context, alt_u32 id)
+{
+	printf("Testing and Debugging ISR\n");
+	printf("Pixel buffer Slave address %d start address %d back buffer address %d\n",pixel_buffer_dev->base,pixel_buffer_dev->buffer_start_address,pixel_buffer_dev->back_buffer_start_address);
+	printf("Addressing mode %d, Color Mode  %d X resolution  %d  Y Resolution  %d\n ",pixel_buffer_dev->addressing_mode,pixel_buffer_dev->color_mode,pixel_buffer_dev->x_resolution,pixel_buffer_dev->y_resolution);
+	printf("X Coordinate Offset%d,  X Coord Mask%d,  Y Coord Offset %d, Y Coord Mask%d\n",pixel_buffer_dev->x_coord_offset,pixel_buffer_dev->x_coord_mask,pixel_buffer_dev->y_coord_offset,pixel_buffer_dev->y_coord_mask);
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
 }
-
-
+*/
+void key2_irq(void* context, alt_u32 id)
+{
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
+}
+/* Latency Test of Image Enabling to VGA Output to triggering photoelectric sensor */
+/* Yet to be done, confirm latency in physical circuit of sensor is negligible */
 void sw1_irq(void* context, alt_u32 id)
 {
 	printf("sw interrupt executed\n");
-	//flag1 = flag1 ^1;
+	image_en = image_en ^1;
 
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_SW1_BASE,0x1);//reset edge capture
 
 }
-/*
-void simple2_irq(void* context, alt_u32 id)
-{
-
-	alt_up_char_buffer_clear(char_buffer_dev);
-	//alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
-	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 255, 0);
-	//usleep(30000);
-	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	usleep(200000);
-	//alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 255, 0);
-	//usleep(60000);
-	//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
-	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 160, 120, 479, 359, 0, 0);
-	usleep(3000000);
-	alt_up_char_buffer_string (char_buffer_dev, "Timeout", 35, 50);
-	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
-}
-*/
-
+/* ISR for handling all PS2 Interrupts */
 void ps2_irq(void* context, alt_u32 id)
 {
 
@@ -147,7 +136,7 @@ void ps2_irq(void* context, alt_u32 id)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_PS2_INTERRUPT_BASE,0x1);//reset edge capture
 
 }
-
+/**/
 void sw16_irq()
 {
 
@@ -161,23 +150,27 @@ void program_init()
 
 	/* initialize the pixel buffer HAL */
 	pixel_buffer_dev = alt_up_pixel_buffer_dma_open_dev ("/dev/Pixel_Buffer_DMA");
+	//if (pixel_buffer_dev->buffer_start_address == 480)alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
+	//printf("pixel buffer current address %d start address %d back buffer address %d\n",pixel_buffer_dev->base,pixel_buffer_dev->buffer_start_address,pixel_buffer_dev->back_buffer_start_address);
+	printf("hello from program init function\n");
 	/* clear the graphics screen */
 	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
 
 	char_buffer_dev = alt_up_char_buffer_open_dev ("/dev/Char_Buffer_with_DMA");
 	alt_up_char_buffer_clear(char_buffer_dev);
 
+
+
 	void* edge_capture_ptr = (void*) &edge_capture;//recast edge capture
+/*
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY2_BASE,0x1);//enable irq
-	alt_irq_register(PIO_KEY2_IRQ,edge_capture_ptr,simple_irq);
+	alt_irq_register(PIO_KEY2_IRQ,edge_capture_ptr,key2_irq);
 
-	/*
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY1_BASE,0x1);//enable irq
-	alt_irq_register(PIO_KEY1_IRQ,edge_capture_ptr,simple2_irq);
-	*/
-
+	alt_irq_register(PIO_KEY1_IRQ, edge_capture_ptr, key1_irq);
+*/
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_SW1_BASE,0x1);//reset edge capture
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_SW1_BASE,0x1);//enable irq
 	alt_irq_register(PIO_SW1_IRQ,edge_capture_ptr,sw1_irq);
@@ -193,32 +186,91 @@ void program_init()
 }
 
 // PS2 Keyboard Functions
-
+/* Polling Wait for PS2 Backspace Key */
 void wait_BackSpace()
 {
 	ps2_clear();
 	while(ps2_used != 102){}
 	ps2_clear();
 }
+/* Polling Wait for Enter Key*/
 void wait_ENTER()
 {
 	ps2_clear();
 	while(ps2_used != 90){}
 	ps2_clear();
 }
+/**/
+void wait_PIO_SW_EN_Check(int set)
+{
+	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
+	alt_up_char_buffer_clear(char_buffer_dev);
+	alt_up_char_buffer_string (char_buffer_dev, "Checking Switch Status17", 5, 5);
+	usleep(100000);
+	alt_up_char_buffer_clear(char_buffer_dev);
+	if(set == 0)
+	{
+		while(IORD_ALTERA_AVALON_PIO_DATA(PIO_SW17_BASE) == 1)
+		{
+			alt_up_char_buffer_string (char_buffer_dev, "Switch17 is currently enabled, Please disable it", 5, 6);
+		}
+
+		alt_up_char_buffer_clear(char_buffer_dev);
+		alt_up_char_buffer_string (char_buffer_dev, "Switch17 is disabled, Proceed with Measurement", 5, 6);
+		alt_up_char_buffer_string (char_buffer_dev, "The Segment 7 LED devices show the time in hexadecimal", 5, 7);
+		alt_up_char_buffer_string (char_buffer_dev, "Press Space when done", 5, 8);
+
+	}
+	else if(set==1)
+	{
+		while(IORD_ALTERA_AVALON_PIO_DATA(PIO_SW17_BASE) == 0)
+		{
+			alt_up_char_buffer_string (char_buffer_dev, "Switch17 is currently disabled, Please enable it", 5, 6);
+		}
+
+		alt_up_char_buffer_clear(char_buffer_dev);
+		alt_up_char_buffer_string (char_buffer_dev, "Switch17 is enabled, Measurement will begin soon", 5, 6);
+		alt_up_char_buffer_string (char_buffer_dev, "The Segment 7 LED devices show the time in hexadecimal", 5, 7);
+		alt_up_char_buffer_string (char_buffer_dev, "Press Space when done", 5, 8);
+	}
+}
+/* Polling function for latency measurement*/
+void wait_PIO_SW()
+{
+	wait_PIO_SW_EN_Check(0);
+	ps2_clear();
+	while(1)
+	{
+		if ( image_en == 1)
+		{
+			alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
+			alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 0);
+		}
+		else if( image_en == 0)
+		{
+			alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
+			alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
+		}
+
+		if(ps2_used == 41) break;
+	}
+	ps2_clear();
+}
+/* Function for flushing the registers of PS2 */
 void ps2_clear()
 {
 	keyboard_flag=0;
 	ps2_used=0;
 	ps2_data=0;
 }
+/* Polling Wait for Text followed by Enter */
 void wait_Text()
 {
-	char text[40];
-	int x = 10;
-	int y = 17;
-	int value=0;
-	char ascii=0;
+
+	text_x = 10;
+	text_y = 17;
+	value=0;
+    char ascii;
 	ps2_clear();
 	while((ps2_used != 90))
 	{
@@ -231,120 +283,56 @@ void wait_Text()
 			{
 			    case 69://0
 			        //printf("entered 0\n");
-			    	ascii = '0';
-			    	text[value] = ascii;
-			    	alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-			    	x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
-			        break;
+			    	PS2Dat2Ascii('0');
+			    	break;
 			    case 22 ://1
 			        //printf("entered 1\n");
-			    	ascii = '1';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-			    	keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
-			        break;
+			    	PS2Dat2Ascii('1');
+			    	break;
 			    case 30 ://2
 			        //printf("entered 2\n");
-			    	ascii = '2';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+			    	PS2Dat2Ascii('2');
 			        break;
 			    case 38://3
 					//printf("entered 3\n");
-			    	ascii = '3';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+			    	PS2Dat2Ascii('3');
 					break;
 				case 37 ://4
 					//printf("entered 4\n");
-			    	ascii = '4';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+					PS2Dat2Ascii('4');
 					break;
 				case 46 ://5
 					//printf("entered 5\n");
-			    	ascii = '5';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+					PS2Dat2Ascii('5');
 					break;
 			    case 54 ://6
 			        //printf("entered 6\n");
-			    	ascii = '6';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
-			        break;
+			    	PS2Dat2Ascii('6');
+			    	break;
 			    case 61 ://7
 			        //printf("entered 7\n");
-			    	ascii = '7';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
-			        break;
+			    	PS2Dat2Ascii('7');
+			    	break;
 			    case 62://8
 					//printf("entered 8\n");
-			    	ascii = '8';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
-					break;
+			    	PS2Dat2Ascii('8');
+			    	break;
 				case 70 ://9
 					//printf("entered 9\n");
-			    	ascii = '9';
-					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					x++;
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+					PS2Dat2Ascii('9');
 					break;
 				case 102 ://Backspace
 					//printf("entered 9\n");
-					x--;
+					if(text_x>10)text_x--;
 					ascii = ' ';
 					text[value] = ascii;
-					alt_up_char_buffer_string (char_buffer_dev, text, x, y);
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+					alt_up_char_buffer_string (char_buffer_dev, text, text_x, text_y);
+					ps2_clear();
 					break;
 				case 240 ://break
 					break;
 				default:
-					keyboard_flag=0;
-					ps2_used=0;
-					ps2_data=0;
+					ps2_clear();
 					break;
 
 
@@ -355,7 +343,15 @@ void wait_Text()
 
 	ps2_clear();
 }
-
+/* Conversion from PS2 Dat to VGA output which uses Ascii*/
+void PS2Dat2Ascii(char ascii)
+{
+	text[value] = ascii;
+	alt_up_char_buffer_string (char_buffer_dev, text, text_x, text_y);
+	text_x++;
+	ps2_clear();
+}
+/* Polling Wait for Text followed by Space*/
 void wait_SPACE()
 {
 	ps2_clear();
@@ -363,8 +359,8 @@ void wait_SPACE()
 	ps2_clear();
 }
 
-
-int wait_left_right()
+/* Polling Wait for selection of category */
+char wait_left_right()
 {
 	ps2_clear();
 	while(1)
@@ -372,17 +368,17 @@ int wait_left_right()
 		if (ps2_used == 107)//left
 		{
 			ps2_clear();
-			return 1;
+			return '1';
 		}
 		else if (ps2_used == 116)//right
 		{
 			ps2_clear();
-			return 0;
+			return '0';
 		}
 	}
 
 }
-
+/* Polling Wait Selection between New or Current */
 int wait_New_or_Current()
 {
 	ps2_clear();
@@ -401,6 +397,7 @@ int wait_New_or_Current()
 	}
 
 }
+/* */
 void wait_M_or_N()
 {
 	ps2_clear();
@@ -411,6 +408,7 @@ void wait_M_or_N()
 	}
 	ps2_clear();
 }
+/* Polling Wait for Selection at Main Menu */
 int wait_Main_Menu()
 {
 	ps2_clear();
@@ -418,46 +416,51 @@ int wait_Main_Menu()
 	{
 		if (ps2_used == 22 )
 		{
-			keyboard_flag=0;
-			ps2_used=0;
-			ps2_data=0;
+			ps2_clear();
 			return 1;
 		}
 		else if (ps2_used == 30)
 		{
-			keyboard_flag=0;
-			ps2_used=0;
-			ps2_data=0;
+			ps2_clear();
 			return 2;
 		}
 		else if (ps2_used == 38)
 		{
-			keyboard_flag=0;
-			ps2_used=0;
-			ps2_data=0;
+			ps2_clear();
 			return 3;
 		}
 	}
 }
 /*SDram function*/
-
-void SDram_to_VGA_back_buffer()
+/*
+ * Function to write Image stored in Main Memory (SDRam) to Pixel Buffer which is
+ * actually the Sram
+*/
+void SDram_to_VGA_back_buffer(int set)
 {
 	int xD=160;
-	int yD=120;
-	int random_picture =0;
+	int yD=80;
 
-	//random_picture++;
-	//if ( random_picture == 10)random_picture ==0;
-	while ((random_picture = rand()%PICTURE_NUMBER) == 0);
+
+	if(set == 1)random_picture++;
+	if ( random_picture == PICTURE_NUMBER)
+	{
+		random_picture =0;
+		printf("results: %s\n\n",oresults);
+		SD_write(oresults);
+		sd_count =0;
+		//alt_up_sd_card_fclose(handler);
+		//sd_close_set=1;
+	}
+	//while ((random_picture = rand()%PICTURE_NUMBER) == 0);
 	//printf("%ld\n",tv.tv_usec);
 	printf ("random picture : %d\n",random_picture);
 //		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
-	while(yD < 359)
+	while(yD < 399)
 	{
 		if(xD < 479)
 		{
-			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120][random_picture], xD , yD);
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-159][yD-80][random_picture], xD , yD);
 			xD++;
 		}
 		else
@@ -465,27 +468,25 @@ void SDram_to_VGA_back_buffer()
 
 			xD=160;
 			yD++;
-			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-160][yD-120][random_picture], xD , yD);
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-159][yD-80][random_picture], xD , yD);
 		}
 
 	}
 
 }
-/* SD Card Functions*/
-/*
- * SD_open()
- * SD_read()
- * SD_subread()
- * SD_text_begin()
- * SD_text_mid()
- * SD_text_end()
- */
+
+void VGA_white()
+{
+
+}
+/**/
 void SD_text_begin()
 {
 	alt_up_char_buffer_string (char_buffer_dev, "Psychophysics Experiment", 20, 10);
-	alt_up_char_buffer_string (char_buffer_dev, "BETA Prototype", 20, 11);
+	alt_up_char_buffer_string (char_buffer_dev, "OMEGA Prototype", 20, 11);
 	alt_up_char_buffer_string (char_buffer_dev, "Processing Information from SD Card...", 20, 30);
 }
+/**/
 void SD_text_mid()
 {
 	printf("read complete\n");
@@ -493,12 +494,14 @@ void SD_text_mid()
 	alt_up_char_buffer_string (char_buffer_dev, "Buffering Pixels...", 20, 33);
 	alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
 }
+/**/
 void SD_text_end()
 {
 	printf("frame to back buffer complete\n");
 	alt_up_char_buffer_string (char_buffer_dev, "Ready!", 20, 34);
 	usleep(600000);
 }
+/**/
 void SD_subread()
 {
 	short int handler;
@@ -533,7 +536,7 @@ void SD_subread()
 	}
 	alt_up_sd_card_fclose(handler);
 }
-
+/**/
 void SD_read()
 {
 	short int handler;
@@ -583,6 +586,7 @@ void SD_read()
 		int read_count = 0 ;
 		OS_ENTER_CRITICAL();
 		handler = alt_up_sd_card_fopen(filename, false);
+
 		while ((read = alt_up_sd_card_read(handler)) != -1)
 		{
 			//printf("%d\n",read);
@@ -598,7 +602,7 @@ void SD_read()
 				picture [row][col][picturenumber] =read;
 			}
 			read_count++;
-			if (read_count >=72958)break;
+			if (read_count >=98250)break;
 
 		}
 		OS_EXIT_CRITICAL();
@@ -607,6 +611,7 @@ void SD_read()
 		alt_up_sd_card_fclose(handler);
 	}
 }
+/**/
 void SD_open()
 {
 	alt_up_sd_card_dev *device_reference = NULL;
@@ -615,6 +620,7 @@ void SD_open()
 	//SD card section
 	device_reference = alt_up_sd_card_open_dev("/dev/Altera_UP_SD_Card_Avalon_Interface_0");
 
+	//results_handler = alt_up_sd_card_fopen("results.txt", true);
 		if (device_reference != NULL)
 		{
 			while(1)
@@ -641,6 +647,7 @@ void SD_open()
 		}
 
 }
+/**/
 void SD_check()
 {
 	if ((alt_up_sd_card_is_Present() == false))
@@ -648,6 +655,30 @@ void SD_check()
 		printf("Card disconnected.\n");
 	}
 }
+/**/
+void SD_write(char result[PICTURE_NUMBER])
+{
+	int x;
+	//char string[20] = "hello world";
+
+		handler = alt_up_sd_card_fopen("result.txt", false);
+		while ((alt_up_sd_card_read(handler)) != -1){}
+		alt_up_sd_card_write(handler, result);
+		for (x=0 ; x <= PICTURE_NUMBER; x++) alt_up_sd_card_write(handler, result[x]);
+
+		alt_up_sd_card_fclose(handler);
+
+
+
+}
+void write_buffer(char result)
+{
+
+	oresults[sd_count] = result;
+	sd_count++;
+
+}
+
 /* Main Menu Functions  */
 int MM()
 {
@@ -663,7 +694,7 @@ int MM()
 	main_menu = wait_Main_Menu();
 	return main_menu;
 }
-
+/**/
 void text_subject()
 {
 	alt_up_char_buffer_clear(char_buffer_dev);
@@ -676,37 +707,38 @@ void text_subject()
 	alt_up_char_buffer_string (char_buffer_dev, "Please press space bar when ready to begin", 20, 30);
 	wait_SPACE();
 }
-
+/**/
 void image_flash()
 {
 
 	alt_up_char_buffer_clear(char_buffer_dev);
+	//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 315, 235, 325, 245, FIXATION_COLOUR, 0);
-	usleep(500000 + rand()%1000000);
+	//usleep(500000 + rand()%1000000);
 	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	usleep(20000);
+	usleep(100000);
 	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
 	usleep(400000);
 
 }
-
+/* */
 int loop()
 {
 	int x=0;
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, X1, Y1, X2, Y2, FIXATION_COLOUR, 0);
-	alt_up_char_buffer_string (char_buffer_dev,"Data Collected" , 30, 50);
-	alt_up_char_buffer_string (char_buffer_dev,"Press Space Bar to Continue" , 30, 51);
-	alt_up_char_buffer_string (char_buffer_dev,"as Current User or press N for New User" , 25, 52);
-	x = wait_New_or_Current();
+	alt_up_char_buffer_string (char_buffer_dev,"Data Collected!" , 30, 50);
+	//alt_up_char_buffer_string (char_buffer_dev,"Press Space Bar to Continue" , 30, 51);
+	//alt_up_char_buffer_string (char_buffer_dev,"as Current User or press N for New User" , 25, 52);
+	//x = wait_New_or_Current();
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 315, 235, 325, 245, FIXATION_COLOUR, 0);
 	return x;
 }
-
-int image_select()
+/* */
+char image_select()
 {
-	int x=0;
+	char x;
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_char_buffer_string (char_buffer_dev,"Face or non-Face? (<-/->)" , 20, 20);
 	x = wait_left_right();
