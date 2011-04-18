@@ -1,7 +1,7 @@
 /*
  * sys_functions.h
  *
- *  Created on: Mar 18, 2011
+ *  Created on: Apr 18, 2011
  *      Author: cj
  *		Revision: 4.2
  *
@@ -71,15 +71,51 @@ OS_EVENT *MM_Elapsed;
 #define TASK9_PRIORITY      9
 #define TASK10_PRIORITY     10
 
-#define PICTURE_NUMBER 30
-#define STR_LEN 20
+#if OS_CRITICAL_METHOD == 3
+OS_CPU_SR cpu_sr;
+#endif
+
+#define PICTURE_NUMBER 5
+
+#define FIXATION_COLOUR 100
+/* Definition of Buffer DMA Devices*/
+alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
+alt_up_char_buffer_dev *char_buffer_dev;
+short int picture[320][320][PICTURE_NUMBER+1];
+
 /* Function for Handling (ISR) Interrupts */
-void simple_irq();
+void key1_irq();
+void key2_irq();
+void key3_irq();
 void sw1_irq();
 void ps2_irq();
 void sw16_irq();
 /* Program Initialisation Program*/
 void program_init();
+/**/
+void wait_PIO_SW();
+void wait_PIO_SW_EN_Check(int set);
+/* Function to Function PS2 Flags */
+void ps2_clear();
+/* PS2 Data to Ascii Transformation function */
+void PS2Dat2Ascii(char ascii);
+/* SD Card Functions */
+/*
+ * Memory interface Function to write from SDram to VGA Back buffer
+ * which is actually the SRAM
+*/
+int SDram_to_VGA_back_buffer(int set);
+void exp_complete();
+/* VGA Interface with PS2 Keyboard Interface Functions*/
+int loop();
+char image_select();
+void text_subject();
+int MM();
+
+/* VGA with SD Interface Functions*/
+void SD_text_begin();
+void SD_text_mid();
+void SD_text_end();
 /* Functions for handling PS2 Keyboard Signals*/
 void wait_ENTER();
 int wait_New_or_Current();
@@ -90,35 +126,5 @@ void wait_Text();
 int wait_Main_Menu();
 char wait_left_right();
 /**/
-void wait_PIO_SW();
-void wait_PIO_SW_EN_Check(int set);
-/* Function to Function PS2 Flags */
-void ps2_clear();
-/* PS2 Data to Ascii Transformation function */
-void PS2Dat2Ascii(char ascii);
-/* SD Card Functions */
-void SD_check();
-void SD_open();
-int sd_fclose(short int handler, char text[STR_LEN]);
-int compare_strings(char A[STR_LEN], char B[STR_LEN]);
-int sd_list(short int handler,int check, char text[STR_LEN]);
-int sd_write(short int handler, char text[STR_LEN], char write_ascii);
-int sd_read(short int handler, char text[STR_LEN]);
-int sd_read_all(short int handler,char text[]);
-/*
- * Memory interface Function to write from SDram to VGA Back buffer
- * which is actually the SRAM
-*/
-void SDram_to_VGA_back_buffer(int set);
-/* VGA Interface with PS2 Keyboard Interface Functions*/
-int loop();
-char image_select();
-void text_subject();
-int MM();
-/* VGA Interface Functions*/
-void image_flash();
-/* VGA with SD Interface Functions*/
-void SD_text_begin();
-void SD_text_mid();
-void SD_text_end();
+int pixel_buffer_dma_draw(alt_up_pixel_buffer_dma_dev *pixel_buffer, unsigned int color, unsigned int x, unsigned int y);
 
