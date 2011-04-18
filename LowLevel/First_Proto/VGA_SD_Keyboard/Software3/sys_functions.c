@@ -1,9 +1,9 @@
 /*
  * sys_functions.c
  *
- *  Created on: Mar 30, 2011
+ *  Created on: Apr 18, 2011
  *      Author: Shee Jia Chin
- *      Revision: 4.2
+ *      Revision: 4.3
  *
  * This Code Interfaces with a Nios Softcore Microprocessor intended to be used
  * With the DE2 Hardware FPGA (Field Programmable Gate Array)
@@ -41,11 +41,15 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
-#include <stdlib.h>
+//#include <utime.h>
+//#include <stdlib.h>
+#include <unistd.h>
 /* Header Files For Implementing uCOSii Kernal*/
 #include "includes.h"
 /* Header Files For System Tailored Functions*/
 #include "sys_functions.h"
+#include "sys_vga_functions.h"
+#include "sys_sd_functions.h"
 /* For Ultilizing OS_ENTER_CRITICAL() & OS_EXIT CRITICAL*/
 #if OS_CRITICAL_METHOD == 3
 OS_CPU_SR cpu_sr;
@@ -66,16 +70,11 @@ int value=0;
 
 /* Definition of Buffer DMA Devices*/
 alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
-alt_up_char_buffer_dev *char_buffer_dev;
 
-alt_up_sd_card_dev *device_reference = NULL;
-char buffer_name[STR_LEN];
+
 short int write_handler;
-short int read_handler;
-short int list_handler;
 
 char oresults[PICTURE_NUMBER];
-int sd_count=0;
 //int sd_close_set=0;
 
 /* Interrupt Flag*/
@@ -87,7 +86,7 @@ int image_en=0;
 
 /* Parameters for Picture Settings */
 
-short int picture[320][320][PICTURE_NUMBER+1];
+
 
 int random_picture=0;
 /*Parameters for Fixation Point*/
@@ -95,7 +94,11 @@ int random_picture=0;
 #define X2 323
 #define Y1 238
 #define Y2 243
-#define FIXATION_COLOUR 100
+
+
+
+
+
 
 /* Testing and Debugging ISR Interrupt Service Routine */
 /*
@@ -112,23 +115,46 @@ void key1_irq(void* context, alt_u32 id)
 {
 	printf("key1 interrupted \n");
 	//sd_read(read_handler,"hello.txt");
-	sd_read(read_handler,"EXP/PICS/SET1/HELLO.TXT");
+	//sd_read(read_handler,"EXP/PICS/SET1/HELLO.TXT");
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
 }
 void key2_irq(void* context, alt_u32 id)
 {
+	printf("key2 interrupted \n");
+	SDram_to_VGA_back_buffer(1);
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
+}
+void key3_irq(void* context, alt_u32 id)
+{
+	printf("key3 interrupted \n");
+	image_en = image_en ^1;
+	if(image_en == 1) alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 480);
+	else alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 960);
+	printf("Pixel buffer Slave address %d start address %d back buffer address %d\n",pixel_buffer_dev->base,pixel_buffer_dev->buffer_start_address,pixel_buffer_dev->back_buffer_start_address);
+	//printf("X Coordinate Offset%d,  X Coord Mask%d,  Y Coord Offset %d, Y Coord Mask%d\n",pixel_buffer_dev->x_coord_offset,pixel_buffer_dev->x_coord_mask,pixel_buffer_dev->y_coord_offset,pixel_buffer_dev->y_coord_mask);
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY3_BASE,0x1);//reset edge capture
 }
 /* Latency Test of Image Enabling to VGA Output to triggering photoelectric sensor */
 /* Yet to be done, confirm latency in physical circuit of sensor is negligible */
 void sw1_irq(void* context, alt_u32 id)
 {
+/*
 	printf("sw interrupt executed\n");
 	image_en = image_en ^1;
+*/
 
+	//alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_SW1_BASE,0x1);//reset edge capture
 
 }
+/**/
+void sw16_irq()
+{
+	alt_up_pixel_buffer_dma_change_back_buffer_address(pixel_buffer_dev, 0);
+    IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_SW16_BASE,0x1);//reset edge capture
+
+}
+
 /* ISR for handling all PS2 Interrupts */
 void ps2_irq(void* context, alt_u32 id)
 {
@@ -146,13 +172,6 @@ void ps2_irq(void* context, alt_u32 id)
 
 	//printf("Hello World \n");
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_PS2_INTERRUPT_BASE,0x1);//reset edge capture
-
-}
-/**/
-void sw16_irq()
-{
-
-IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_SW16_BASE,0x1);//reset edge capture
 
 }
 
@@ -174,11 +193,16 @@ void program_init()
 
 
 	void* edge_capture_ptr = (void*) &edge_capture;//recast edge capture
-/*
+
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY2_BASE,0x1);//reset edge capture
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY2_BASE,0x1);//enable irq
 	alt_irq_register(PIO_KEY2_IRQ,edge_capture_ptr,key2_irq);
 
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY3_BASE,0x1);//reset edge capture
+	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY3_BASE,0x1);//enable irq
+	alt_irq_register(PIO_KEY3_IRQ,edge_capture_ptr,key3_irq);
+
+/*
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PIO_KEY1_BASE,0x1);//reset edge capture
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PIO_KEY1_BASE,0x1);//enable irq
 	alt_irq_register(PIO_KEY1_IRQ, edge_capture_ptr, key1_irq);
@@ -450,8 +474,23 @@ int wait_Main_Menu()
  * Function to write Image stored in Main Memory (SDRam) to Pixel Buffer which is
  * actually the Sram
 */
-void SDram_to_VGA_back_buffer(int set)
+int pixel_buffer_dma_draw(alt_up_pixel_buffer_dma_dev *pixel_buffer, unsigned int color, unsigned int x, unsigned int y)
+/* This function draws a pixel to the back buffer.
+ */
 {
+	// boundary check
+	unsigned int addr = 0;
+		addr |= ((x & pixel_buffer->x_coord_mask) << pixel_buffer->x_coord_offset);
+		addr |= ((y & pixel_buffer->y_coord_mask) << pixel_buffer->y_coord_offset);
+	/* Now, depending on the color depth, write the pixel color to the specified memory location. */
+		IOWR_8DIRECT(pixel_buffer->back_buffer_start_address, addr, color);
+
+	return 0;
+}
+
+int SDram_to_VGA_back_buffer(int set)
+{
+	int ret = 0;
 	int xD=160;
 	int yD=80;
 	if(set == 1)random_picture++;
@@ -460,9 +499,10 @@ void SDram_to_VGA_back_buffer(int set)
 	if ( random_picture > PICTURE_NUMBER)
 	{
 		random_picture =1;
+		ret = 1;
 		//printf("results: %s\n\n",oresults);
 		//sd_write(oresults);
-		sd_count =0;
+		//sd_count =0;
 		//alt_up_sd_card_fclose(handler);
 		//sd_close_set=1;
 	}
@@ -486,7 +526,7 @@ void SDram_to_VGA_back_buffer(int set)
 		}
 
 	}
-
+	return ret;
 }
 
 void VGA_white()
@@ -516,251 +556,6 @@ void SD_text_end()
 	alt_up_char_buffer_string (char_buffer_dev, "Ready!", 20, 34);
 	usleep(600000);
 }
-/**/
-int sd_fclose(short int handler, char text[STR_LEN])
-{
-	int x =0;
-	if (handler != -1)	alt_up_sd_card_fclose(handler);
-	else	{printf("File: %s",text);printf(" did not close properly\n");x =1;}
-	return x;
-}
-int compare_strings(char A[STR_LEN], char B[STR_LEN])
-{
-	int match =0 ;
-	int mismatch =0;
-	int x = 0;
-	for(x = 0; x <=STR_LEN; x++)
-	{
-		//printf("%d ", B[x]);
-		if (B[x] == 46) break;
-		if(x>0) if(match != 1) mismatch = 1;
-		if(A[x] == B[x]) match = 1;
-		else match = 0;
-	}
-	if(mismatch == 1) match =0;
-	//printf("\n");
-	//if(match == 1) printf("strings match\n");
-	return match;
-}
-int sd_list(short int handler,int check, char text[STR_LEN])
-{
-	//int match = 0;
-	//int x = 0 ;
-	//int ret = 0 ;
-	int int_set=0;
-	handler = alt_up_sd_card_find_first("", buffer_name);
-	if(check == 0)
-	{
-		printf("%s \n", buffer_name);
-		while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1) printf("%s \n", buffer_name);
-		/* BEWARE!! if you accidently close alt_up_sd_card_fclose(-1), this will lock your sd card
-		 * card and bring it into limbo if you try to access it.
-		 */
-
-		handler = alt_up_sd_card_find_first("", buffer_name);
-		sd_fclose(handler,text);
-	}
-	else if (check ==1 )
-	{
-		if(compare_strings(buffer_name , text))
-		{
-			int_set = 1;
-			//printf("match found \n");
-		}
-		//else int_set = 0;
-		//printf("%s %s\n",text, buffer_name);
-		while ((handler = alt_up_sd_card_find_next(buffer_name)) != -1)
-		{
-			if(compare_strings(buffer_name , text))
-			{
-				int_set = 1;
-				//printf("match found \n");
-			}
-			//else int_set =0;
-			//printf("%s %s\n",text, buffer_name);
-		}
-		//printf("%s \n", buffer_name);
-		/* BEWARE!! if you accidently close alt_up_sd_card_fclose(-1), this will lock your sd card
-		 * card and bring it into limbo if you try to access it.
-		 */
-		//sd_fclose(handler,text);
-
-		//if (int_set == 1) x = 1;
-		//printf("int_set: %d\n",int_set);
-	}
-
-	return int_set;
-}
-int sd_write(short int handler, char text[STR_LEN], char write_ascii)
-{
-	/* writing operations*/
-	int err_close=0;
-	if(sd_list(list_handler, 1 , text) == 0)
-	{
-		printf("File location does not exist, creating a new file\n");
-		handler = alt_up_sd_card_fopen(text, true);
-	}
-	else if ( sd_list(list_handler, 1 , text) == 1 )
-	{
-		handler = alt_up_sd_card_fopen(text, false);
-	}
-	while ((alt_up_sd_card_read(handler)) != -1){}
-	//for (x=0 ; x <= 20; x++) alt_up_sd_card_write(handler, string[x]);
-	if(alt_up_sd_card_write(handler, write_ascii) == false ) printf("write unsuccessful\n");
-
-	err_close = sd_fclose(handler,text);
-	if(err_close == 1) printf("SD_write operation unsuccessful...\n");
-	else printf("SD_write operation success!\n");
-	//handler = alt_up_sd_card_fopen("text2.txt", false);
-	//while ((read = alt_up_sd_card_read(handler)) != -1) printf("%c", read);
-	//alt_up_sd_card_fclose(handler);
-
-	return 0;
-}
-
-int sd_read(short int handler, char text[STR_LEN])
-{
-	int x=0;
-	short int read;
-	handler = alt_up_sd_card_fopen(text, false);
-	while ((read = alt_up_sd_card_read(handler)) != -1)
-		{
-		x++;
-			printf("%c", read);
-		}
-	printf("\n");
-	printf("file count %d, handler %d \n",x, handler);
-	sd_fclose(handler,text);
-	return 0;
-}
-/**/
-int SD_read_all(short int handler, char text[])
-{
-	char final_text[40];
-	unsigned char read;
-	//char read;
-	int xx = 20;
-	int picturenumber=0 ;
-	int ref=0;
-	char filename[6];
-	int x=0;
-	int y=0;
-	for(x = 0 ; x<=40;x++)
-	{
-		if(text[x] == 46)break;
-		final_text[x] = text[x];
-	}
-
-	for(picturenumber = 1;picturenumber <=PICTURE_NUMBER; picturenumber++)
-	{
-		ref = picturenumber;
-		sprintf(filename, "%d", ref);
-
-		if(picturenumber >=10)
-		{
-			filename[2]='.';
-			filename[3]='t';
-			filename[4]='x';
-			filename[5]='t';
-			filename[6]=0;
-		}
-		else
-		{
-			filename[1]='.';
-			filename[2]='t';
-			filename[3]='x';
-			filename[4]='t';
-			filename[5]=0;
-			//filename[6]
-		}
-
-		//printf("%s\n", filename);
-
-
-		for(y = 0 ; y<=6 ; y++ )
-		{
-			if(filename[y]==0)break;
-			final_text[x+y] = filename[y];
-		}
-		printf("%s\n", final_text);
-		//handler = alt_up_sd_card_fopen("1.txt", false);
-
-		int row = 0;
-		int col =0;
-		int read_count = 0 ;
-		OS_ENTER_CRITICAL();
-		handler = alt_up_sd_card_fopen(final_text, false);
-
-		while ((read = alt_up_sd_card_read(handler)) != -1)
-		{
-			//printf("%d\n",read);
-			if (row < 319)
-			{
-				row++;
-				picture [row][col][picturenumber] =read;
-			}
-			else
-			{
-				row=0;
-				col++;
-				picture [row][col][picturenumber] =read;
-			}
-			read_count++;
-			if (read_count >=98250)break;
-
-		}
-		OS_EXIT_CRITICAL();
-		alt_up_char_buffer_string (char_buffer_dev, ".", xx, 31);
-		xx++;
-		alt_up_sd_card_fclose(handler);
-	}
-	return 0;
-}
-/**/
-void SD_open()
-{
-
-	int connected = 0;
-
-	//SD card section
-	device_reference = alt_up_sd_card_open_dev("/dev/Altera_UP_SD_Card_Avalon_Interface_0");
-
-	//results_handler = alt_up_sd_card_fopen("results.txt", true);
-		if (device_reference != NULL)
-		{
-			while(1)
-			{
-				if ((connected == 0) && (alt_up_sd_card_is_Present()))
-				{
-					printf("Card connected.\n");
-					//usleep(5000000);
-					if (alt_up_sd_card_is_FAT16())
-					{
-						printf("FAT16 file system detected.\n");
-						break;
-					}
-					else 							printf("Unknown file system.\n");
-					connected = 1;
-				}
-				else if ((connected == 1) && (alt_up_sd_card_is_Present() == false))
-				{
-					printf("Card disconnected.\n");
-					connected = 0;
-				}
-				//printf("polling, connected %d\n", connected);
-			}
-		}
-
-}
-/**/
-void SD_check()
-{
-	if ((alt_up_sd_card_is_Present() == false))
-	{
-		printf("Card disconnected.\n");
-	}
-}
-/**/
 
 /* Main Menu Functions  */
 int MM()
@@ -784,7 +579,7 @@ void text_subject()
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_char_buffer_string (char_buffer_dev, "Please enter your Subject Number:", 10, 16);
 	wait_Text();
-	sd_write(write_handler, "RESULTS.TXT",10);
+	//sd_write(write_handler, "RESULTS.TXT",10);
 	for(x = 0 ; x<=40;x++)
 	{
 		if (sub_id[x] == 0 )break;
@@ -793,26 +588,33 @@ void text_subject()
 	sd_write(write_handler, "RESULTS.TXT",';');
 	sd_write(write_handler, "RESULTS.TXT",10);
 	alt_up_char_buffer_clear(char_buffer_dev);
-	alt_up_char_buffer_string (char_buffer_dev, "Instructions:", 10, 16);
-	alt_up_char_buffer_string (char_buffer_dev, "You will be shown a image briefly", 10, 17);
-	alt_up_char_buffer_string (char_buffer_dev, "Select a category that you think the picture belongs to", 10, 20);
-	alt_up_char_buffer_string (char_buffer_dev, "Please press space bar when ready to begin", 20, 30);
+	alt_up_char_buffer_string (char_buffer_dev, "Instructions:", 10, 12);
+	alt_up_char_buffer_string (char_buffer_dev, "You will be shown a image briefly", 10, 13);
+	alt_up_char_buffer_string (char_buffer_dev, "Select a category that you think the picture belongs to", 10, 16);
+	alt_up_char_buffer_string (char_buffer_dev, "Please press space bar when ready to begin", 20, 20);
 	wait_SPACE();
-}
-/**/
-void image_flash()
-{
 
 	alt_up_char_buffer_clear(char_buffer_dev);
-	//alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
+	alt_up_char_buffer_string (char_buffer_dev, "Pay attention to the Centre Point ", 10, 12);
+	alt_up_char_buffer_string (char_buffer_dev, "The Experiment is about to start ", 10, 13);
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 315, 235, 325, 245, FIXATION_COLOUR, 0);
-	//usleep(500000 + rand()%1000000);
-	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	usleep(50000);
-	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	usleep(400000);
+	usleep(3000000);
 
 }
+
+void exp_complete()
+{
+	alt_up_char_buffer_clear(char_buffer_dev);
+	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
+	alt_up_char_buffer_string (char_buffer_dev, "Experiment Complete!! ", 10, 18);
+	alt_up_char_buffer_string (char_buffer_dev, "Thank you for participating... ", 10, 19);
+	alt_up_char_buffer_string (char_buffer_dev, "Hope to See you again soon...", 10, 20);
+	usleep(3000000);
+	alt_up_char_buffer_clear(char_buffer_dev);
+	alt_up_pixel_buffer_dma_clear_screen(pixel_buffer_dev, 0);
+}
+/**/
+
 /* */
 int loop()
 {
@@ -823,6 +625,7 @@ int loop()
 	//alt_up_char_buffer_string (char_buffer_dev,"Press Space Bar to Continue" , 30, 51);
 	//alt_up_char_buffer_string (char_buffer_dev,"as Current User or press N for New User" , 25, 52);
 	//x = wait_New_or_Current();
+	//x  =
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 315, 235, 325, 245, FIXATION_COLOUR, 0);
 	return x;
@@ -832,7 +635,7 @@ char image_select()
 {
 	char x;
 	alt_up_char_buffer_clear(char_buffer_dev);
-	alt_up_char_buffer_string (char_buffer_dev,"Face or non-Face? (A <-/-> L)" , 20, 20);
+	alt_up_char_buffer_string (char_buffer_dev,"Face or non-Face? (A <-/-> L)" , 20, 15);
 	x = wait_left_right();
 	alt_up_char_buffer_string (char_buffer_dev,"please wait for a moment" , 30, 49);
 	return x;

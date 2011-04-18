@@ -1,9 +1,9 @@
 /*
  * hello_ucosii.c
  *
- *  Created on: Mar 30, 2011
+ *  Created on: Apr 18, 2011
  *      Author: Shee Jia Chin
- *      Revision: 4.0
+ *      Revision: 4.3
  *
  * This code is the Main Program Flow of the System to be implemented on a
  * Nios Softcore Microprocessor intended to be used with the Altera DE2 Hardware
@@ -30,7 +30,6 @@
  *           -Hardware Latency Measurement for DC Baising against possible results
  *           collected used to measure reaction times
  *           -Hardware Time Measurement of anywhere in program flow,
- *           to do's: Interface with PS2 keyboard and VGA output
  *           -Measurement Resolution of 50MHz
 */
 
@@ -54,7 +53,8 @@
 #include "includes.h"
 /* Header Files For System Tailored Functions*/
 #include "sys_functions.h"
-
+#include "sys_sd_functions.h"
+#include "sys_vga_functions.h"
 // Required for Enabling and Disabling Interrupts
 #if OS_CRITICAL_METHOD == 3
 OS_CPU_SR cpu_sr;
@@ -67,7 +67,9 @@ short int read_handler;
 /* Establish Flow of Task 2 Thread, Main Menu Execution */
 void task1(void* pdata)
 {
-
+	//OS_ENTER_CRITICAL();
+	//program_init();
+	//OS_EXIT_CRITICAL();
 	//For Semaphore
 	INT8U err;
 	//int x = 0;
@@ -75,6 +77,7 @@ void task1(void* pdata)
   {
 //    OSSemPend(SD,0,&err);
     printf("Hello from task1\n");
+    if( pixel_buffer_dev->buffer_start_address== 480) alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
     SD_text_begin();
     SD_open();
 
@@ -85,12 +88,14 @@ void task1(void* pdata)
 */
 
  //   SD_subread();
-//	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+	//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
     //OS_ENTER_CRITICAL();
+
+    SD_write_set(write_handler,"SET4");
     SD_read_all(read_handler, "EXP/PICS/SET4/.");
     //sd_read(read_handler,"EXP/PICS/Set1/HELLO.TXT");
-    //OS_EXIT_CRITICAL();
-//	IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
+   //OS_EXIT_CRITICAL();
+	//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 /*
     OSTaskResume(2);
     OSTaskResume(3);
@@ -185,6 +190,7 @@ void task2(void* pdata)
 /* Psychophysic Experiment Thread */
 void task3(void* pdata)
 {
+
 	int subject_flag = 0;
 	int IK=0; // Internal Key
 	int x = 0;
@@ -196,7 +202,12 @@ void task3(void* pdata)
 		{
 			OSSemPend(MM_VGAc,0,&err);
 			//text_wait();
+			text_subject();
+			IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
+			OS_ENTER_CRITICAL();
 			SDram_to_VGA_back_buffer(1);
+			OS_EXIT_CRITICAL();
+			IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
 			//text_wait_end();
 			if(reload_image == 1 )
 			{
@@ -212,7 +223,7 @@ void task3(void* pdata)
 			if (subject_flag == 0)
 			{
 				subject_flag = 1;
-				text_subject();
+				//text_subject();
 			}
 			//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
 			OS_ENTER_CRITICAL();
@@ -234,16 +245,20 @@ void task3(void* pdata)
 			}
 
 			//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
-			SDram_to_VGA_back_buffer(1);
+			x =SDram_to_VGA_back_buffer(1);
 			//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
-			x = loop();
+			loop();
+			// x = loop();
 			//SD_write_en = 1;
 			if (x == 1)
 			{
+				sd_write(write_handler, "RESULTS.TXT",10);//new line
+				exp_complete();
 				subject_flag = 0;
 				IK =0;
 				OSSemPost(MM_VGAc);
 			}
+
 		}
 		OSTimeDlyHMSM(0, 0, 0, 70);
 	}
@@ -364,8 +379,8 @@ void task10(void* pdata)
 /* The main function creates four tasks and starts multi-tasking */
 int main(void)
 {
-	program_init();
 
+	program_init();
 	//OSInit();
 	SD = OSSemCreate(0);
 	SD_MM = OSSemCreate(0);
