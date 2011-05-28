@@ -38,4 +38,3 @@ int sd_write(short int handler, char text[STR_LEN], char write_ascii);
 int sd_read(short int handler, char text[STR_LEN]);
 int SD_read_all(short int handler,char text[]);
 int SD_write_set(short int handler,char text[] );
-

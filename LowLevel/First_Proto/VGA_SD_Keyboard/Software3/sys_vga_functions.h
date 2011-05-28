@@ -13,4 +13,3 @@
 
 /* VGA Interface Functions*/
 void image_flash();
-

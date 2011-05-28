@@ -169,6 +169,7 @@ int SD_write_set(short int handler, char text[])
 		{
 			if (text[x] == 0 )break;
 			sd_write(handler, "RESULTS.TXT",text[x]);
+			printf("%c\n",text[x]);
 		}
 	sd_write(handler, "RESULTS.TXT",';');
 	sd_write(handler, "RESULTS.TXT",10);
@@ -177,6 +178,7 @@ int SD_write_set(short int handler, char text[])
 }
 int SD_read_all(short int handler, char text[])
 {
+	printf("initiating Picture read\n");
 	char final_text[40];
 	unsigned char read;
 	//char read;
@@ -192,7 +194,7 @@ int SD_read_all(short int handler, char text[])
 		final_text[x] = text[x];
 	}
 
-	for(picturenumber = 1;picturenumber <=PICTURE_NUMBER; picturenumber++)
+	for(picturenumber = PICTURE_START;picturenumber <=PICTURE_NUMBER; picturenumber++)
 	{
 		ref = picturenumber;
 		sprintf(filename, "%d", ref);
@@ -215,7 +217,7 @@ int SD_read_all(short int handler, char text[])
 			//filename[6]
 		}
 
-		//printf("%s\n", filename);
+		printf("%s\n", filename);
 
 
 		for(y = 0 ; y<=6 ; y++ )
@@ -231,11 +233,11 @@ int SD_read_all(short int handler, char text[])
 		int read_count = 0 ;
 		//OS_ENTER_CRITICAL();
 		handler = alt_up_sd_card_fopen(final_text, false);
-
+		//printf("%d",handler);
 		while ((read = alt_up_sd_card_read(handler)) != -1)
 		{
 			//printf("%d\n",read);
-			if (row < 319)
+			if (row < 159)
 			{
 				row++;
 				picture [row][col][picturenumber] =read;
@@ -247,7 +249,7 @@ int SD_read_all(short int handler, char text[])
 				picture [row][col][picturenumber] =read;
 			}
 			read_count++;
-			if (read_count >=98250)break;
+			if (read_count >=24576)break;
 
 		}
 		//OS_EXIT_CRITICAL();
@@ -301,4 +303,3 @@ void SD_check()
 		printf("Card disconnected.\n");
 	}
 }
-
