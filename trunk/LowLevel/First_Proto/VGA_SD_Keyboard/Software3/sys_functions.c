@@ -97,9 +97,6 @@ int random_picture=0;
 
 
 
-
-
-
 /* Testing and Debugging ISR Interrupt Service Routine */
 /*
 void key1_irq(void* context, alt_u32 id)
@@ -491,8 +488,8 @@ int pixel_buffer_dma_draw(alt_up_pixel_buffer_dma_dev *pixel_buffer, unsigned in
 int SDram_to_VGA_back_buffer(int set)
 {
 	int ret = 0;
-	int xD=160;
-	int yD=80;
+	int xD=240;
+	int yD=160;
 	if(set == 1)random_picture++;
 
 
@@ -510,19 +507,19 @@ int SDram_to_VGA_back_buffer(int set)
 	//printf("%ld\n",tv.tv_usec);
 	printf ("random picture : %d\n",random_picture);
 //		IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
-	while(yD < 399)
+	while(yD < 319)
 	{
-		if(xD < 479)
+		if(xD < 399)
 		{
-			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-159][yD-79][random_picture], xD , yD);
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-240][yD-160][random_picture], xD , yD);
 			xD++;
 		}
 		else
 		{
 
-			xD=160;
+			xD=240;
 			yD++;
-			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-159][yD-79][random_picture], xD , yD);
+			alt_up_pixel_buffer_dma_draw( pixel_buffer_dev, picture[xD-240][yD-160][random_picture], xD , yD);
 		}
 
 	}
@@ -537,8 +534,8 @@ void VGA_white()
 void SD_text_begin()
 {
 	alt_up_char_buffer_string (char_buffer_dev, "Psychophysics Experiment", 20, 10);
-	alt_up_char_buffer_string (char_buffer_dev, "Theta-Alpha Prototype", 20, 11);
-	alt_up_char_buffer_string (char_buffer_dev, "Testing Phase - Round 2", 20, 12);
+	alt_up_char_buffer_string (char_buffer_dev, "Theta-Beta Prototype", 20, 11);
+	alt_up_char_buffer_string (char_buffer_dev, "Testing Phase - Round 3", 20, 12);
 	alt_up_char_buffer_string (char_buffer_dev, "Processing Information from SD Card...", 20, 30);
 }
 /**/
@@ -590,7 +587,7 @@ void text_subject()
 	alt_up_char_buffer_clear(char_buffer_dev);
 	alt_up_char_buffer_string (char_buffer_dev, "Instructions:", 10, 12);
 	alt_up_char_buffer_string (char_buffer_dev, "You will be shown a image briefly", 10, 13);
-	alt_up_char_buffer_string (char_buffer_dev, "Select a category that you think the picture belongs to", 10, 16);
+	alt_up_char_buffer_string (char_buffer_dev, "Select whether you think it is a human face or a non-face", 10, 16);
 	alt_up_char_buffer_string (char_buffer_dev, "Please press space bar when ready to begin", 20, 20);
 	wait_SPACE();
 
@@ -640,4 +637,3 @@ char image_select()
 	alt_up_char_buffer_string (char_buffer_dev,"please wait for a moment" , 30, 49);
 	return x;
 }
-

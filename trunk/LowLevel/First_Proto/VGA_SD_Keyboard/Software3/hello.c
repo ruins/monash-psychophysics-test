@@ -77,7 +77,9 @@ void task1(void* pdata)
   {
 //    OSSemPend(SD,0,&err);
     printf("Hello from task1\n");
+
     if( pixel_buffer_dev->buffer_start_address== 480) alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
+    //Reset Buffer start address reference
     SD_text_begin();
     SD_open();
 
@@ -91,8 +93,9 @@ void task1(void* pdata)
 	//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x1);
     //OS_ENTER_CRITICAL();
 
-    SD_write_set(write_handler,"SET4");
-    SD_read_all(read_handler, "EXP/PICS/SET4/.");
+    SD_write_set(write_handler,"SET6");
+
+    SD_read_all(read_handler, "EXP/PICS/Set6/.");
     //sd_read(read_handler,"EXP/PICS/Set1/HELLO.TXT");
    //OS_EXIT_CRITICAL();
 	//IOWR_ALTERA_AVALON_PIO_DATA(PIO_O_EN_BASE, 0x0);
@@ -498,6 +501,5 @@ int main(void)
 
   return 0;
 }
-
 
 

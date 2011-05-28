@@ -75,13 +75,14 @@ OS_EVENT *MM_Elapsed;
 OS_CPU_SR cpu_sr;
 #endif
 
-#define PICTURE_NUMBER 5
+#define PICTURE_NUMBER 96
+#define PICTURE_START 1
 
 #define FIXATION_COLOUR 100
 /* Definition of Buffer DMA Devices*/
 alt_up_pixel_buffer_dma_dev *pixel_buffer_dev;
 alt_up_char_buffer_dev *char_buffer_dev;
-short int picture[320][320][PICTURE_NUMBER+1];
+short int picture[160][160][PICTURE_NUMBER+1];
 
 /* Function for Handling (ISR) Interrupts */
 void key1_irq();
@@ -127,4 +128,3 @@ int wait_Main_Menu();
 char wait_left_right();
 /**/
 int pixel_buffer_dma_draw(alt_up_pixel_buffer_dma_dev *pixel_buffer, unsigned int color, unsigned int x, unsigned int y);
-

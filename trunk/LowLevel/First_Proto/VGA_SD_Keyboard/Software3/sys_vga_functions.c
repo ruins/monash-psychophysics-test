@@ -37,10 +37,9 @@ void image_flash()
 	alt_up_pixel_buffer_dma_draw_box(pixel_buffer_dev, 315, 235, 325, 245, FIXATION_COLOUR, 0);
 	//usleep(500000 + rand()%1000000);
 	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
-	usleep(40000);
+	usleep(200000);
 	alt_up_pixel_buffer_dma_swap_buffers(pixel_buffer_dev);
 	usleep(400000);
 
 }
-
 
