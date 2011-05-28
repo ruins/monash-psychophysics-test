@@ -19,22 +19,38 @@ int count=0;
 char atextcvt;
 int textcvt;
 
+int picturenumber;
+char open[45] = "/home/cj/Documents/Cdebugging/";
+char close[45] = "/home/cj/Documents/Cdebugging/result/";
+char filename[45];
+char extension[4] = ".txt";
 printf("Programming starting...\n");
+int counting =0;
 
-fpin=fopen("/home/cj/Documents/Cdebugging/thesis.txt", "r");
-fpout=fopen("/home/cj/Documents/Cdebugging/thesispipe.txt", "w");
+for ( picturenumber = 1; picturenumber<=100; picturenumber++)
+{ 
+sprintf(filename, "%s%d%s", open, picturenumber, extension);
+printf("in: %s\n",filename);
+fpin=fopen(filename, "r");
+sprintf(filename, "%s%d%s", close, picturenumber, extension);
+fpout=fopen(filename, "w");
+printf("out: %s\n",filename);
+
+//fpin=fopen("/home/cj/Documents/Cdebugging/testA.txt", "r");
+//fpout=fopen("/home/cj/Documents/Cdebugging/testB.txt", "w");
 
 
             while  ( ( x = fgetc( fpin ) ) != EOF )
             {
-		
 		y=x;
 		if (x == 10)
-		{
-			//printf("current text is : %s\n", text);
+		{			
+			counting++;
 			textcvt = atoi(text);
+			//printf("textcvt : %d\n", textcvt);			
 			atextcvt = textcvt;
-			fprintf(fpout, "%c\n", atextcvt);
+			fprintf(fpout, "%c", textcvt);
+			//fprintf(fpout, 10, textcvt);
 			count=0; //reset counter
 			for (j=0;j<10;j++)text[j]=0;
 		}		
@@ -56,6 +72,8 @@ fpout=fopen("/home/cj/Documents/Cdebugging/thesispipe.txt", "w");
             }
 */
 printf("\n");
+}
+printf("%d", counting);
 printf("task finished \n\n");
 
 fclose( fpin );
